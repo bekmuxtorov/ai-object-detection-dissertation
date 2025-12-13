@@ -92,6 +92,10 @@
         }
         .theme-btn:hover { background: var(--primary); color: var(--card-bg); }
 
+        #cam-switch-btn {
+            display: none; /* Faqat mobilda JS orqali yoqiladi */
+        }
+
         #canvas-wrapper {
             position: relative; border-radius: 8px; overflow: hidden;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); border: 2px solid #333; background: #000;
@@ -172,6 +176,9 @@
                 </div>
                 <div style="display: flex; align-items: center;">
                     <div class="status-badge" id="system-status">Kutilmoqda...</div>
+                    
+                    <button id="cam-switch-btn" class="theme-btn" onclick="switchCamera()">🔄</button>
+                    
                     <button class="theme-btn" onclick="toggleTheme()">🌗</button>
                 </div>
             </header>
@@ -229,6 +236,9 @@
         let latencyData = [];
         const MAX_HISTORY = 50; 
 
+        let currentFacingMode = 'user'; // 'user' (oldi) yoki 'environment' (orqa)
+        let isMobile = false;
+
         function setStatus(text, bg, color) {
             const badge = document.getElementById('system-status');
             badge.innerText = text;
@@ -244,14 +254,13 @@
                 model = await tmImage.load(URL + "model.json", URL + "metadata.json");
                 maxPredictions = model.getTotalClasses();
 
-                const flip = true; 
-                webcam = new tmImage.Webcam(480, 360, flip); 
-                await webcam.setup(); 
-                await webcam.play();
-                
-                const wrapper = document.getElementById("canvas-wrapper");
-                if(wrapper.querySelector('canvas')) wrapper.querySelector('canvas').remove();
-                wrapper.appendChild(webcam.canvas);
+                isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile) {
+                    document.getElementById('cam-switch-btn').style.display = 'block'; // Tugmani ko'rsatish
+                }
+
+                // 3. Kamerani ishga tushirish (Alohida funksiya orqali)
+                await setupWebcam();
                 
                 isModelReady = true;
                 setStatus("Tizim Ishlamoqda", "#d4edda", "#155724");
@@ -268,6 +277,52 @@
             }
         }
 
+          async function setupWebcam() {
+            // Agar oldingi kamera bo'lsa, uni to'xtatamiz
+            if (webcam && webcam.stop) {
+                await webcam.stop();
+            }
+
+            // Flip: Old kamera uchun TRUE, Orqa kamera uchun FALSE
+            const flip = (currentFacingMode === 'user'); 
+            
+            const width = 480;
+            const height = 360;
+
+            webcam = new tmImage.Webcam(width, height, flip); 
+            
+            // Tanlangan kamerani so'rash
+            await webcam.setup({ facingMode: currentFacingMode }); 
+            await webcam.play();
+
+            // DOMga joylashtirish
+            const wrapper = document.getElementById("canvas-wrapper");
+            // Eski canvasni tozalash
+            wrapper.innerHTML = '<div class="viewfinder"></div>'; 
+            wrapper.appendChild(webcam.canvas);
+        }
+
+        // --- YANGI: KAMERA ALMASHTIRISH ---
+        async function switchCamera() {
+            if (!isMobile) return;
+
+            // Modelni vaqtincha to'xtatib turamiz
+            isModelReady = false;
+            setStatus("Kamera almashmoqda...", "#cce5ff", "#004085");
+
+            // Rejimni o'zgartirish
+            if (currentFacingMode === 'user') {
+                currentFacingMode = 'environment'; // Orqaga o'tish
+            } else {
+                currentFacingMode = 'user'; // Oldiga o'tish
+            }
+
+            // Kamerani qayta ishga tushirish
+            await setupWebcam();
+
+            isModelReady = true;
+            setStatus("Tizim Ishlamoqda", "#d4edda", "#155724");
+        }
         // --- LOOP ---
         async function loop(timestamp) {
             if (isModelReady) {
@@ -278,8 +333,8 @@
                     lastTime = timestamp;
                 }
 
-                window.requestAnimationFrame(loop);
             }
+             window.requestAnimationFrame(loop);
         }
 
         async function predict() {
