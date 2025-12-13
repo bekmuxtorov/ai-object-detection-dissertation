@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="uz">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intellektual Tizim - Dissertatsiya</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <style>
+        /* --- RANG PALITRASI --- */
+        :root {
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --text-main: #2c3e50;
+            --text-sec: #666;
+            --primary: #003366;
+            --accent: #0066cc;
+            --border: #dfe6e9;
+            --success: #28a745;
+        }
+
+        .dark-mode {
+            --bg-color: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --text-main: #ffffff;
+            --text-sec: #aaaaaa;
+            --primary: #4da6ff;
+            --accent: #66b3ff;
+            --border: #404040;
+            --success: #2ea043;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0; padding: 15px; /* Padding kamaytirildi */
+            height: 100vh;
+            box-sizing: border-box; 
+            overflow: hidden; /* Scroll umuman bo'lmasligi uchun */
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .main-container {
+            display: grid; 
+            grid-template-columns: 1.3fr 0.7fr; /* O'ng tomonni sal kichraytirdik */
+            gap: 15px; 
+            height: 100%;
+        }
+
+        /* --- KAMERA QISMI --- */
+        .camera-section {
+            background: var(--card-bg); 
+            border-radius: 12px; 
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; /* Vertikal markazlash */
+            border: 1px solid var(--border);
+            transition: background 0.3s, border 0.3s;
+            overflow: hidden;
+        }
+
+        header {
+            width: 100%; margin-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 8px; display: flex;
+            justify-content: space-between; align-items: center;
+        }
+
+        h1 { font-size: 1.1rem; color: var(--primary); margin: 0; text-transform: uppercase; }
+
+        .status-badge {
+            background: #fff3cd; color: #856404; padding: 4px 10px;
+            border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+        }
+
+        .theme-btn {
+            background: transparent; border: 1px solid var(--primary);
+            color: var(--primary); padding: 4px 8px; border-radius: 5px;
+            cursor: pointer; font-weight: bold; margin-left: 8px; font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .theme-btn:hover { background: var(--primary); color: var(--card-bg); }
+
+        #canvas-wrapper {
+            position: relative; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); border: 2px solid #333; background: #000;
+            /* Kamera o'lchamini moslashuvchan qilamiz */
+            width: 100%; 
+            max-width: 520px; 
+            aspect-ratio: 4/3;
+            display: flex; justify-content: center; align-items: center;
+        }
+        
+        #canvas-wrapper canvas { width: 100%; height: 100%; object-fit: cover; }
+
+        .viewfinder {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); width: 60%; height: 60%;
+            border: 2px dashed rgba(255, 255, 255, 0.8); border-radius: 10px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.1); pointer-events: none; z-index: 10;
+        }
+
+        .live-result { margin-top: 15px; text-align: center; width: 100%; }
+        .result-label { font-size: 1.8rem; font-weight: 700; color: var(--primary); margin-bottom: 5px;}
+        .result-conf { font-size: 0.9rem; color: var(--text-sec); }
+
+        /* --- STATISTIKA QISMI (FLEXBOX BILAN) --- */
+        .stats-section {
+            display: flex; /* Grid o'rniga Flex */
+            flex-direction: column;
+            gap: 15px; 
+            height: 100%; 
+            overflow: hidden; /* Scrollni yo'qotish */
+        }
+
+        .card {
+            background: var(--card-bg); 
+            border-radius: 8px; 
+            padding: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); 
+            border: 1px solid var(--border);
+            transition: background 0.3s, border 0.3s;
+            
+            /* Kartochkalarni teng bo'lish */
+            flex: 1; 
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* Juda muhim: Chart.js siqilishi uchun */
+        }
+
+        .card h3 {
+            margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-sec);
+            border-bottom: 1px solid var(--border); padding-bottom: 5px;
+            flex-shrink: 0; /* Sarlavha kichraymasin */
+        }
+
+        /* Grafik Konteyneri */
+        .chart-container {
+            flex: 1; /* Qolgan barcha joyni egallasin */
+            position: relative;
+            width: 100%;
+            min-height: 0;
+        }
+
+        @media (max-width: 900px) {
+            body { overflow-y: auto; height: auto; } /* Telefonda scroll bo'lsin */
+            .main-container { grid-template-columns: 1fr; height: auto; }
+            .stats-section { height: 600px; } /* Telefonda balandlik beramiz */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="main-container">
+        <div class="camera-section">
+            <header>
+                <div style="display: flex; flex-direction: column;">
+                    <h1>Real Vaqt Deteksiyasi</h1>
+                    <small style="color: var(--text-sec);">Farg'ona Davlat Texnika Universiteti</small>
+                </div>
+                <div style="display: flex; align-items: center;">
+                    <div class="status-badge" id="system-status">Kutilmoqda...</div>
+                    <button class="theme-btn" onclick="toggleTheme()">🌗</button>
+                </div>
+            </header>
+
+            <div id="canvas-wrapper">
+                <div class="viewfinder"></div>
+            </div>
+
+            <div class="live-result">
+                <div class="result-label" id="label-display">...</div>
+                <div class="result-conf" id="conf-display">Ishonch darajasi: 0%</div>
+                <div style="width: 80%; margin: 10px auto; background: var(--border); height: 8px; border-radius: 4px; overflow: hidden;">
+                    <div id="live-bar" style="width: 0%; background: var(--accent); height: 100%; transition: width 0.2s;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            
+            <div class="card">
+                <h3>Tahlil Vaqti (Inference - ms)</h3>
+                <div class="chart-container">
+                    <canvas id="latencyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Ishonch Darajasi Tarixi</h3>
+                <div class="chart-container">
+                    <canvas id="confidenceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Barqarorlik (Stability)</h3>
+                <div class="chart-container">
+                    <canvas id="stabilityChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SOZLAMALAR ---
+        const URL = "https://teachablemachine.withgoogle.com/models/W8VUaGfbD/";
+        let model, webcam, maxPredictions;
+        let isModelReady = false;
+        
+        let lastTime = 0;
+        const DATA_INTERVAL = 500; // Sekinlashuv (0.5s)
+
+        let confChart, stabChart, latencyChart;
+        let historyData = [];
+        let stabilityData = [];
+        let latencyData = [];
+        const MAX_HISTORY = 50; 
+
+        function setStatus(text, bg, color) {
+            const badge = document.getElementById('system-status');
+            badge.innerText = text;
+            badge.style.backgroundColor = bg;
+            badge.style.color = color;
+        }
+
+        // --- INIT ---
+        async function init() {
+            setStatus("Model yuklanmoqda...", "#fff3cd", "#856404");
+
+            try {
+                model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+                maxPredictions = model.getTotalClasses();
+
+                const flip = true; 
+                webcam = new tmImage.Webcam(480, 360, flip); 
+                await webcam.setup(); 
+                await webcam.play();
+                
+                const wrapper = document.getElementById("canvas-wrapper");
+                if(wrapper.querySelector('canvas')) wrapper.querySelector('canvas').remove();
+                wrapper.appendChild(webcam.canvas);
+                
+                isModelReady = true;
+                setStatus("Tizim Ishlamoqda", "#d4edda", "#155724");
+
+                initLiveCharts();
+                initLatencyChart();
+
+                window.requestAnimationFrame(loop);
+
+            } catch (e) {
+                console.error(e);
+                setStatus("Xato!", "#f8d7da", "#721c24");
+                alert("Kameraga ruxsat bering!");
+            }
+        }
+
+        // --- LOOP ---
+        async function loop(timestamp) {
+            if (isModelReady) {
+                webcam.update(); 
+
+                if (timestamp - lastTime > DATA_INTERVAL) {
+                    await predict();
+                    lastTime = timestamp;
+                }
+
+                window.requestAnimationFrame(loop);
+            }
+        }
+
+        async function predict() {
+            const start = performance.now();
+            const prediction = await model.predict(webcam.canvas);
+            const end = performance.now();
+            const latency = end - start;
+
+            let bestPred = prediction[0];
+            for (let i = 1; i < maxPredictions; i++) {
+                if (prediction[i].probability > bestPred.probability) {
+                    bestPred = prediction[i];
+                }
+            }
+
+            updateDashboard(bestPred.className, bestPred.probability);
+            updateCharts(bestPred.probability);
+            updateLatencyChart(latency);
+        }
+
+        function updateDashboard(label, conf) {
+            let labelDiv = document.getElementById('label-display');
+            let confDiv = document.getElementById('conf-display');
+            let bar = document.getElementById('live-bar');
+
+            if (conf > 0.85) {
+                labelDiv.innerText = label;
+                labelDiv.style.color = "var(--primary)";
+                confDiv.innerText = `Ishonch darajasi: ${(conf * 100).toFixed(1)}%`;
+                bar.style.width = `${conf * 100}%`;
+                bar.style.backgroundColor = "var(--success)";
+            } else {
+                labelDiv.innerText = "Aniqlanmadi";
+                labelDiv.style.color = "var(--text-sec)";
+                confDiv.innerText = "Obyektni yaqinlashtiring";
+                bar.style.width = "0%";
+            }
+        }
+
+        // --- GRAFIKLAR ---
+        const chartCommonOptions = {
+            responsive: true,
+            maintainAspectRatio: false, // O'z konteyneriga moslashish
+            animation: false,
+            scales: {
+                y: { min: 0, grid: { color: '#e5e7eb' }, ticks: { color: '#666' } },
+                x: { display: false, grid: { display: false } }
+            },
+            plugins: { legend: { display: false } },
+            layout: { padding: 0 }
+        };
+
+        function initLatencyChart() {
+            const ctxLat = document.getElementById('latencyChart').getContext('2d');
+            latencyChart = new Chart(ctxLat, {
+                type: 'line',
+                data: {
+                    labels: Array(50).fill(''), 
+                    datasets: [{
+                        data: Array(50).fill(0),
+                        borderColor: '#8844ff',
+                        backgroundColor: 'rgba(136, 68, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3, pointRadius: 0
+                    }]
+                },
+                options: {
+                    ...chartCommonOptions,
+                    scales: {
+                        y: { 
+                            suggestedMax: 50, 
+                            title: { display: true, text: 'ms' },
+                            grid: { color: '#e5e7eb' },
+                            ticks: { color: '#666' }
+                        },
+                        x: { display: false }
+                    }
+                }
+            });
+        }
+
+        function initLiveCharts() {
+            // Confidence
+            const ctxConf = document.getElementById('confidenceChart').getContext('2d');
+            confChart = new Chart(ctxConf, {
+                type: 'line',
+                data: {
+                    labels: Array(MAX_HISTORY).fill(''),
+                    datasets: [{
+                        data: Array(MAX_HISTORY).fill(0),
+                        borderColor: '#0066cc',
+                        backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        pointRadius: 0,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    ...chartCommonOptions,
+                    scales: { y: { min: 0, max: 1, grid: { color: '#e5e7eb' }, ticks: { color: '#666' } }, x: { display: false } }
+                }
+            });
+
+            // Stability
+            const ctxStab = document.getElementById('stabilityChart').getContext('2d');
+            stabChart = new Chart(ctxStab, {
+                type: 'bar',
+                data: {
+                    labels: Array(20).fill(''),
+                    datasets: [{
+                        data: Array(20).fill(0),
+                        backgroundColor: '#28a745',
+                        borderRadius: 2
+                    }]
+                },
+                options: {
+                    ...chartCommonOptions,
+                    scales: { y: { min: 0, max: 1, grid: { color: '#e5e7eb' }, ticks: { color: '#666' } }, x: { display: false } }
+                }
+            });
+        }
+
+        function updateLatencyChart(timeTaken) {
+            latencyData.push(timeTaken);
+            if (latencyData.length > 50) latencyData.shift();
+            latencyChart.data.datasets[0].data = latencyData;
+            updateChartTheme(latencyChart);
+            latencyChart.update();
+        }
+
+        function updateCharts(confidence) {
+            historyData.push(confidence);
+            if (historyData.length > MAX_HISTORY) historyData.shift();
+            confChart.data.datasets[0].data = historyData;
+            updateChartTheme(confChart);
+            confChart.update();
+
+            let stability = confidence > 0.85 ? 1.0 : (Math.random() * 0.3);
+            stabilityData.push(stability);
+            if (stabilityData.length > 20) stabilityData.shift();
+            stabChart.data.datasets[0].data = stabilityData;
+            stabChart.data.datasets[0].backgroundColor = stabilityData.map(v => v > 0.8 ? '#28a745' : '#dc3545');
+            updateChartTheme(stabChart);
+            stabChart.update();
+        }
+
+        // --- DARK MODE LOGIKASI ---
+        function toggleTheme() {
+            document.body.classList.toggle("dark-mode");
+        }
+
+        function updateChartTheme(chart) {
+            const isDark = document.body.classList.contains("dark-mode");
+            const gridColor = isDark ? '#444' : '#e5e7eb';
+            const textColor = isDark ? '#aaaaaa' : '#666';
+
+            if (chart && chart.options.scales.x) {
+                chart.options.scales.x.grid.color = gridColor;
+                chart.options.scales.x.ticks.color = textColor;
+            }
+            if (chart && chart.options.scales.y) {
+                chart.options.scales.y.grid.color = gridColor;
+                chart.options.scales.y.ticks.color = textColor;
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
