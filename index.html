@@ -359,18 +359,23 @@
             let labelDiv = document.getElementById('label-display');
             let confDiv = document.getElementById('conf-display');
             let bar = document.getElementById('live-bar');
+            let viewfinder = document.querySelector('.viewfinder');
 
             if (conf > 0.85) {
                 labelDiv.innerText = label;
-                labelDiv.style.color = "var(--primary)";
+                labelDiv.style.color = "#00ff9d";
                 confDiv.innerText = `Ishonch darajasi: ${(conf * 100).toFixed(1)}%`;
                 bar.style.width = `${conf * 100}%`;
-                bar.style.backgroundColor = "var(--success)";
+                bar.style.backgroundColor = "#00ff9d";
+                viewfinder.style.borderColor = "#00ff9d";
+                viewfinder.style.boxShadow = "0 0 15px #00ff9d, 0 0 0 9999px rgba(0, 0, 0, 0.5)";
             } else {
                 labelDiv.innerText = "Aniqlanmadi";
                 labelDiv.style.color = "var(--text-sec)";
                 confDiv.innerText = "Obyektni yaqinlashtiring";
                 bar.style.width = "0%";
+                viewfinder.style.borderColor = "rgba(255, 255, 255, 0.8)";
+                viewfinder.style.boxShadow = "0 0 0 9999px rgba(0, 0, 0, 0.5)";
             }
         }
 
